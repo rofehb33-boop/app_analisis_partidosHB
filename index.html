@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Handball RefEval Pro</title>
+
+    <!-- Embedded Manifest for PWA (Single File Deployment) -->
+    <link rel="manifest"
+        href='data:application/manifest+json,%7B%22name%22%3A%22Handball%20RefEval%20Pro%22%2C%22short_name%22%3A%22RefEval%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22orientation%22%3A%22portrait%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F33%2F33736.png%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F33%2F33736.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D' />
+
+    <!-- iOS Icon Support -->
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/33/33736.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            overflow-y: auto;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+            /* Prevents bounce on pull-to-refresh */
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+  }
+}
+</script>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+        // --- CONSTANTS ---
+        const ACTION_BUTTONS = [
+            { code: 'PP', description: 'Progresiva', category: 'admin' },
+            { code: 'D2M', description: '2 Minutos', category: 'admin' },
+            { code: 'RC/BC', description: 'Red Card / Blue Card', category: 'admin' },
+            { code: 'VT', description: 'Ventaja', category: 'game' },
+            { code: 'PZ', description: 'Pivot zone', category: 'game' },
+            { code: 'WZ', description: 'Puntero', category: 'game' },
+            { code: 'OF', description: 'Falta ataque', category: 'foul' },
+            { code: '7M', description: '7metros', category: 'game' },
+            { code: 'JP', description: 'Juego pasivo', category: 'game' },
+            { code: 'AR', description: 'Area', category: 'game' },
+            { code: 'SOP', description: 'Simulación', category: 'foul' },
+            { code: 'EJ', description: 'Ejecuciones', category: 'game' },
+            { code: 'Pa', description: 'Pasos', category: 'game' },
+            { code: 'BL', description: 'Leng. Corporal', category: 'tech' },
+            { code: 'AV', description: 'Arco vacio', category: 'game' },
+            { code: 'BDT', description: 'Bancos y DT', category: 'admin' },
+            { code: 'SP', description: 'Especial', category: 'tech' },
+            { code: '30s', description: 'Ultimos 30s', category: 'admin' },
+            { code: 'PL', description: 'Play on', category: 'game' },
+            { code: 'VR', description: 'Video replay', category: 'tech' },
+        ];
+
+        const COLOR_MAP = {
+            foul: 'bg-red-600 hover:bg-red-500 border-red-800 active:bg-red-700',
+            admin: 'bg-amber-600 hover:bg-amber-500 border-amber-800 active:bg-amber-700',
+            tech: 'bg-slate-600 hover:bg-slate-500 border-slate-700 active:bg-slate-700',
+            game: 'bg-blue-600 hover:bg-blue-500 border-blue-800 active:bg-blue-700',
+        };
+
+        // --- UTILS ---
+        const formatTime = (seconds) => {
+            const absSeconds = Math.abs(seconds);
+            const m = Math.floor(absSeconds / 60);
+            const s = Math.floor(absSeconds % 60);
+            return `${seconds < 0 ? '-' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        };
+
+        const generateId = () => Math.random().toString(36).substring(2, 9);
+
+        const parseCSV = (csvText) => {
+            const lines = csvText.split('\n');
+            // Skip header
+            const dataLines = lines.slice(1).filter(line => line.trim() !== '');
+
+            return dataLines.map(line => {
+                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                if (parts.length < 4) return null;
+
+                const code = parts[0].trim();
+                const description = parts[1].replace(/^"|"$/g, '').trim();
+                const timestamp = parseFloat(parts[3]);
+
+                const preBuffer = parts[5] ? parseFloat(parts[5]) : 10;
+                const postBuffer = parts[6] ? parseFloat(parts[6]) : 20;
+
+                return {
+                    id: generateId(),
+                    code,
+                    description,
+                    timestamp,
+                    formattedTime: formatTime(timestamp),
+                    realTime: Date.now(),
+                    preBuffer,
+                    postBuffer
+                };
+            }).filter(e => e !== null);
+        };
+
+
+        const generateCSV = (events) => {
+            const headers = ['Action Code', 'Description', 'Match Time (MM:SS)', 'Seconds', 'Real Time', 'Pre Buffer', 'Post Buffer'];
+            const rows = events.map(e => [
+                e.code,
+                `"${e.description}"`,
+                e.formattedTime,
+                e.timestamp.toFixed(2),
+                new Date(e.realTime).toISOString(),
+                e.preBuffer,
+                e.postBuffer
+            ]);
+            return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        };
+
+        const generateWindowsScript = (events, videoFileName) => {
+            const cleanVideoName = videoFileName.replace(/"/g, '');
+            const playlistName = "VER_CLIPS.m3u";
+
+            let script = `@echo off\r\n`;
+            script += `chcp 65001 >nul\r\n`;
+            script += `setlocal enabledelayedexpansion\r\n`;
+            script += `\r\n`;
+            script += `echo ===============================================\r\n`;
+            script += `echo      Handball RefEval Pro - Procesador Total\r\n`;
+            script += `echo ===============================================\r\n`;
+            script += `\r\n`;
+            script += `if not exist "ffmpeg.exe" (\r\n`;
+            script += `    echo [ERROR] Falta ffmpeg.exe\r\n`;
+            script += `    echo Por favor pon ffmpeg.exe en esta carpeta.\r\n`;
+            script += `    pause\r\n`;
+            script += `    exit\r\n`;
+            script += `)\r\n`;
+            script += `\r\n`;
+            script += `if not exist "${cleanVideoName}" (\r\n`;
+            script += `    echo [ERROR] No encuentro el video: "${cleanVideoName}"\r\n`;
+            script += `    echo Asegurate que el nombre es exacto.\r\n`;
+            script += `    pause\r\n`;
+            script += `    exit\r\n`;
+            script += `)\r\n`;
+            script += `\r\n`;
+            script += `echo 1. Preparando carpeta de clips...\r\n`;
+            script += `if not exist "clips" mkdir "clips"\r\n`;
+            script += `\r\n`;
+            script += `echo 2. Iniciando Playlist ${playlistName}...\r\n`;
+            script += `echo #EXTM3U > "${playlistName}"\r\n`;
+            script += `echo # Playlist Generada Automaticamente >> "${playlistName}"\r\n`;
+            script += `\r\n`;
+            script += `echo 3. Procesando ${events.length} eventos...\r\n`;
+            script += `echo IMPORTANTE: No cierres esta ventana hasta que termine.\r\n`;
+            script += `echo -----------------------------------------------\r\n`;
+            script += `\r\n`;
+
+            events.forEach((e, index) => {
+                const start = Math.max(0, e.timestamp - e.preBuffer).toFixed(2);
+                const duration = (e.preBuffer + e.postBuffer).toFixed(2);
+                const safeCode = e.code.replace(/[^a-zA-Z0-9]/g, '');
+                const clipFilename = `clips\\${index + 1}_${safeCode}_${e.formattedTime.replace(':', '-')}.mp4`;
+                const title = `${index + 1}. ${e.code} (${e.description})`;
+
+                script += `echo [${index + 1}/${events.length}] Procesando: ${e.code}...\r\n`;
+                // FFMPEG Command:
+                // -nostdin: Vital for batch loops
+                // <NUL: Extra layer of protection against stdin hijacking
+                // -v error: Less noise
+                script += `ffmpeg -nostdin -ss ${start} -i "${cleanVideoName}" -t ${duration} -c:v libx264 -preset fast -crf 23 -c:a aac "${clipFilename}" -y -hide_banner -loglevel error <NUL\r\n`;
+
+                // Add to playlist immediately
+                script += `echo #EXTINF:-1,${title} >> "${playlistName}"\r\n`;
+                script += `echo ${clipFilename} >> "${playlistName}"\r\n`;
+            });
+
+            script += `\r\n`;
+            script += `echo ===============================================\r\n`;
+            script += `echo                PROCESO TERMINADO\r\n`;
+            script += `echo ===============================================\r\n`;
+            script += `echo 1. Tus clips estan en la carpeta 'clips'\r\n`;
+            script += `echo 2. Abre el archivo '${playlistName}' para verlos\r\n`;
+            script += `echo.\r\n`;
+            script += `pause\r\n`;
+            return script;
+        };
+
+        // --- COMPONENTS ---
+
+        const HelpModal = ({ onClose }) => (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
+                <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full shadow-2xl border border-slate-700 animate-[fadeIn_0.2s_ease-out] overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 sticky top-0 bg-slate-800 pt-2">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-orange-500 rounded p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-xl font-bold text-white">Cómo Generar Clips (Paso a Paso)</h2>
+                        </div>
+                        <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+                    </div>
+
+                    <div className="space-y-6 text-slate-300">
+                        <section className="bg-teal-900/30 p-4 rounded-lg border border-teal-700/50">
+                            <h3 className="text-teal-300 font-bold mb-2 flex items-center gap-2">
+                                <span className="text-xl">🎯</span> PASO 1: Sincronizar (Esencial)
+                            </h3>
+                            <p className="text-sm mb-3">
+                                Los tiempos de tu celular no coinciden con los del video de la TV.
+                            </p>
+                            <ol className="list-decimal list-inside text-sm space-y-2 text-slate-300">
+                                <li>Carga tu <strong>Video</strong> y tu <strong>CSV</strong> en esta App.</li>
+                                <li>Busca en el video el <strong>PITAZO INICIAL</strong> (00:00 del partido).</li>
+                                <li>Pausa el video justo ahí y presiona <span className="text-teal-300 font-bold">🏁 AQUÍ INICIA EL PARTIDO</span>.</li>
+                            </ol>
+                        </section>
+
+                        <h3 className="text-white font-bold border-b border-slate-700 pb-2">PASO 2: Generar Clips (La Magia)</h3>
+                        <div className="grid gap-4">
+                            <section className="flex gap-4">
+                                <div className="bg-slate-800 text-white font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0 border border-slate-600">1</div>
+                                <div>
+                                    <h3 className="text-white font-bold mb-1">Descargar el Acelerador</h3>
+                                    <p className="text-sm text-slate-400">
+                                        Presiona <span className="text-white bg-orange-600 px-1.5 py-0.5 rounded text-xs">✂️ Generar Clips</span>.
+                                        Se descargará UN solo archivo: <code>PROCESAR_CLIPS.bat</code>.
+                                    </p>
+                                </div>
+                            </section>
+
+                            <section className="flex gap-4">
+                                <div className="bg-slate-800 text-white font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0 border border-slate-600">2</div>
+                                <div>
+                                    <h3 className="text-white font-bold mb-1">Ponlo en la Carpeta 📁</h3>
+                                    <p className="text-sm text-slate-400">
+                                        Mueve <code>PROCESAR_CLIPS.bat</code> a la misma carpeta donde está tu video y <code>ffmpeg.exe</code>.
+                                    </p>
+                                </div>
+                            </section>
+
+                            <section className="flex gap-4">
+                                <div className="bg-slate-800 text-white font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0 border border-slate-600">3</div>
+                                <div>
+                                    <h3 className="text-white font-bold mb-1">Ejecutar y Listo ✨</h3>
+                                    <ol className="text-xs text-slate-500 mt-2 list-decimal list-inside space-y-1">
+                                        <li>Doble click al archivo <code>.bat</code>.</li>
+                                        <li>Espera que termine la pantalla negra.</li>
+                                        <li>¡Aparecerá un archivo <code>VER_CLIPS.m3u</code> mágicamente! Ábrelo con VLC.</li>
+                                    </ol>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                        <button onClick={onClose} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-bold transition-colors">
+                            ¡Entendido!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const Stopwatch = ({ currentTime, isPlaying, onTogglePlay, onReset, videoLoaded, activeLoop, onStopLoop }) => (
+            <div className={`p-4 rounded-xl shadow-lg border flex flex-col items-center justify-center w-full mb-4 transition-colors ${activeLoop ? 'bg-indigo-900/80 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}>
+                {activeLoop ? (
+                    <div className="flex flex-col items-center animate-pulse">
+                        <div className="text-indigo-300 text-xs uppercase font-bold tracking-widest mb-1">↺ REPLAY LOOP ACTIVE</div>
+                        <button onClick={onStopLoop} className="mb-2 bg-indigo-600 text-white text-xs px-3 py-1 rounded hover:bg-indigo-500">STOP LOOP</button>
+                    </div>
+                ) : (
+                    <div className="text-slate-400 text-xs uppercase font-bold tracking-widest mb-1">Match Time</div>
+                )}
+
+                <div className={`text-6xl sm:text-7xl font-mono font-bold tracking-tighter mb-4 tabular-nums ${isPlaying ? 'text-green-400' : (activeLoop ? 'text-indigo-400' : 'text-red-400')}`}>
+                    {formatTime(currentTime)}
+                </div>
+
+                <div className="flex gap-3 w-full max-w-md justify-center">
+                    <button
+                        onClick={onTogglePlay}
+                        className={`flex-1 py-3 sm:py-4 rounded-lg font-bold text-white text-lg shadow-lg active:scale-95 transition-transform touch-manipulation ${isPlaying ? 'bg-amber-600' : 'bg-green-600'}`}
+                    >
+                        {isPlaying ? 'PAUSE' : 'START'}
+                    </button>
+                    <button
+                        onClick={onReset}
+                        className="px-6 py-3 sm:py-4 rounded-lg font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 shadow-lg active:scale-95 transition-transform touch-manipulation"
+                    >
+                        RESET
+                    </button>
+                </div>
+                {videoLoaded && !activeLoop && <div className="mt-3 text-xs text-blue-400 flex items-center gap-2">● Synced with Video</div>}
+            </div>
+        );
+
+        const ActionGrid = ({ onAction, disabled }) => (
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 select-none pb-4">
+                {ACTION_BUTTONS.map((btn) => (
+                    <button
+                        key={btn.code}
+                        disabled={disabled}
+                        onClick={(e) => {
+                            const el = e.currentTarget;
+                            el.style.transform = "scale(0.95)";
+                            setTimeout(() => el.style.transform = "scale(1)", 100);
+                            onAction(btn.code, btn.description);
+                        }}
+                        className={`${COLOR_MAP[btn.category]} h-20 sm:h-24 rounded-lg border-b-4 active:border-b-0 flex flex-col items-center justify-center text-center shadow-md transition-all touch-manipulation`}
+                    >
+                        <span className="text-xl sm:text-2xl font-bold text-white drop-shadow-md leading-none pointer-events-none">{btn.code}</span>
+                        <span className="text-[10px] sm:text-xs text-white/90 font-medium leading-tight mt-1 px-1 pointer-events-none truncate w-full">{btn.description}</span>
+                    </button>
+                ))}
+            </div>
+        );
+
+        const TimeAdjuster = ({ label, value, onChange, colorClass, title }) => (
+            <div className="flex flex-col gap-1 flex-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400" title={title}>{label}</span>
+                <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700 h-10">
+                    <button
+                        onClick={() => onChange(Math.max(1, value - 1))}
+                        className="w-10 h-full flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 active:scale-95 transition-transform text-lg"
+                    >
+                        -
+                    </button>
+                    <div className={`flex-1 text-center font-mono font-bold text-lg ${colorClass}`}>
+                        {value}s
+                    </div>
+                    <button
+                        onClick={() => onChange(value + 1)}
+                        className="w-10 h-full flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 active:scale-95 transition-transform text-lg"
+                    >
+                        +
+                    </button>
+                </div>
+            </div>
+        );
+
+        const EventLog = ({ events, onDelete, onSeek, onUpdate, currentTime, activeLoop, videoLoaded }) => {
+            const listRef = useRef(null);
+            const [expandedId, setExpandedId] = useState(null);
+
+            // 1. AUTO-SCROLL: Solo baja la lista interna cuando agregas un evento (sin mover la ventana principal)
+            useEffect(() => {
+                if (events.length > 0 && !activeLoop && listRef.current) {
+                    // Usamos scrollTop directo para evitar animaciones de ventana
+                    listRef.current.scrollTop = listRef.current.scrollHeight;
+                }
+            }, [events.length, activeLoop]);
+
+            // 2. CALCULAR EVENTO ACTIVO: Optimizado para no ejecutarse 60 veces por segundo si no cambia el ID
+            const activeEventId = useMemo(() => {
+                if (activeLoop) return activeLoop.id;
+                // Solo buscamos si hay video cargado y reproduciendo, para ahorrar recursos
+                if (!videoLoaded) return null;
+
+                const found = events.find(e => currentTime >= e.timestamp - e.preBuffer && currentTime <= e.timestamp + e.postBuffer);
+                return found ? found.id : null;
+            }, [events, currentTime, activeLoop, videoLoaded]);
+
+            // 3. FOLLOW MODE: Solo hace scroll si tienes el VIDEO CARGADO y cambia el evento activo
+            useEffect(() => {
+                if (activeEventId && videoLoaded && listRef.current) {
+                    const el = document.getElementById(`event-${activeEventId}`);
+                    if (el) {
+                        // Calculamos la posición relativa dentro del contenedor
+                        const container = listRef.current;
+                        const topPos = el.offsetTop - container.offsetTop;
+
+                        // Scroll suave solo dentro del contenedor
+                        container.scrollTo({
+                            top: topPos - (container.clientHeight / 2) + (el.clientHeight / 2),
+                            behavior: 'smooth'
+                        });
+                    }
+                }
+            }, [activeEventId, videoLoaded]);
+
+            return (
+                <div className="bg-slate-800 rounded-xl shadow-lg border border-slate-700 flex flex-col h-80 lg:h-full overflow-hidden mt-4 lg:mt-0">
+                    <div className="p-3 border-b border-slate-700 bg-slate-800/50 font-bold text-white flex justify-between sticky top-0 z-10">
+                        <span>Event Log</span>
+                        <span className="bg-slate-700 px-2 rounded-full text-xs flex items-center">{events.length}</span>
+                    </div>
+                    <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-900/30 relative">
+                        {events.length === 0 && <div className="text-slate-500 text-center mt-8 text-sm italic">No events yet.<br />Import CSV or Start Match.</div>}
+                        {events.map((event) => {
+                            const isActive = activeEventId === event.id;
+                            const isLoopTarget = activeLoop && activeLoop.id === event.id;
+                            const isExpanded = expandedId === event.id;
+                            const buttonCategory = ACTION_BUTTONS.find(a => a.code === event.code)?.category || 'tech';
+
+                            return (
+                                <div
+                                    key={event.id}
+                                    id={`event-${event.id}`}
+                                    className={`flex flex-col p-2 rounded-lg border transition-all ${isLoopTarget ? 'bg-indigo-900 border-indigo-400 ring-1 ring-indigo-400' : (isActive ? 'bg-slate-700 border-slate-500' : 'bg-slate-700/30 border-slate-700')}`}
+                                >
+                                    <div className="flex justify-between items-start w-full">
+                                        <div className="flex gap-3 flex-1 cursor-pointer items-center" onClick={() => onSeek(event)}>
+                                            <div className={`w-1.5 h-8 rounded-full ${COLOR_MAP[buttonCategory].split(' ')[0]}`}></div>
+                                            <div className="overflow-hidden flex-1">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex gap-2 items-baseline">
+                                                        <span className="font-mono font-bold text-slate-200">{event.formattedTime}</span>
+                                                        <span className={`font-bold ${isLoopTarget ? 'text-indigo-300' : 'text-blue-300'}`}>{event.code}</span>
+                                                    </div>
+                                                    {isLoopTarget && <span className="text-[10px] bg-indigo-600 text-white px-1 rounded animate-pulse">LOOP</span>}
+                                                </div>
+                                                <div className="text-xs text-slate-400 truncate">{event.description}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1 items-center">
+                                            <button
+                                                onClick={() => setExpandedId(isExpanded ? null : event.id)}
+                                                className={`text-slate-500 hover:text-blue-400 px-2 py-1 ${isExpanded ? 'text-blue-400' : ''}`}
+                                                title="Editar Tiempos"
+                                            >
+                                                ⚙
+                                            </button>
+                                            <button onClick={(e) => { e.stopPropagation(); onDelete(event.id); }} className="text-slate-500 hover:text-red-400 px-2 py-1 text-lg">×</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Editor de Tiempos Mejorado */}
+                                    {isExpanded && (
+                                        <div className="mt-2 pt-3 pb-2 border-t border-slate-600 bg-slate-800/50 p-2 rounded animate-[fadeIn_0.2s_ease-out]">
+                                            <div className="flex gap-2 mb-2">
+                                                <TimeAdjuster
+                                                    label="Tiempo Antes (Pre)"
+                                                    title="Aumenta para ver más tiempo ANTES del click"
+                                                    value={event.preBuffer}
+                                                    colorClass="text-amber-400"
+                                                    onChange={(val) => onUpdate(event.id, { ...event, preBuffer: val })}
+                                                />
+                                                <TimeAdjuster
+                                                    label="Tiempo Después (Post)"
+                                                    title="Aumenta para ver más tiempo DESPUÉS del click"
+                                                    value={event.postBuffer}
+                                                    colorClass="text-blue-400"
+                                                    onChange={(val) => onUpdate(event.id, { ...event, postBuffer: val })}
+                                                />
+                                            </div>
+                                            <div className="text-center text-[10px] text-slate-500 font-mono">
+                                                Duración total del clip: <span className="text-slate-300 font-bold">{event.preBuffer + event.postBuffer}s</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+        const App = () => {
+            const [events, setEvents] = useState([]);
+            const [currentTime, setCurrentTime] = useState(0);
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [videoSrc, setVideoSrc] = useState("");
+            const [videoFile, setVideoFile] = useState(null);
+
+            // UI State
+            const [showHelp, setShowHelp] = useState(false);
+            const [installPrompt, setInstallPrompt] = useState(null);
+
+            // Loop State
+            const [activeLoop, setActiveLoop] = useState(null);
+
+            const videoRef = useRef(null);
+            const rafRef = useRef(0);
+            const lastTimeRef = useRef(0);
+
+            useEffect(() => {
+                const handler = (e) => {
+                    e.preventDefault();
+                    setInstallPrompt(e);
+                };
+                window.addEventListener('beforeinstallprompt', handler);
+                return () => window.removeEventListener('beforeinstallprompt', handler);
+            }, []);
+
+            const handleInstallClick = async () => {
+                if (!installPrompt) return;
+                installPrompt.prompt();
+                const { outcome } = await installPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    setInstallPrompt(null);
+                }
+            };
+
+            const handleFileChange = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const file = e.target.files[0];
+                    setVideoFile(file);
+                    setVideoSrc(URL.createObjectURL(file));
+                    setIsPlaying(false);
+                    setCurrentTime(0);
+                    setActiveLoop(null);
+                }
+            };
+
+            const handleImportCSV = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const file = e.target.files[0];
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        const result = evt.target?.result;
+                        if (typeof result === 'string') {
+                            const parsedEvents = parseCSV(result);
+                            if (parsedEvents) {
+                                setEvents(parsedEvents);
+                                alert(`Imported ${parsedEvents.length} events successfully!`);
+                            }
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+
+            useEffect(() => {
+                if (activeLoop && videoRef.current && isPlaying) {
+                    if (currentTime >= activeLoop.end) {
+                        videoRef.current.currentTime = activeLoop.start;
+                    }
+                }
+            }, [currentTime, activeLoop, isPlaying]);
+
+            const updateTimer = useCallback(() => {
+                if (videoSrc && videoRef.current) {
+                    setCurrentTime(videoRef.current.currentTime);
+                    if (!videoRef.current.paused && !videoRef.current.ended) {
+                        rafRef.current = requestAnimationFrame(updateTimer);
+                    }
+                } else if (isPlaying) {
+                    const now = performance.now();
+                    const delta = (now - lastTimeRef.current) / 1000;
+                    setCurrentTime(prev => prev + delta);
+                    lastTimeRef.current = now;
+                    rafRef.current = requestAnimationFrame(updateTimer);
+                }
+            }, [videoSrc, isPlaying]);
+
+            useEffect(() => {
+                if (isPlaying) {
+                    lastTimeRef.current = performance.now();
+                    rafRef.current = requestAnimationFrame(updateTimer);
+                } else if (rafRef.current) {
+                    cancelAnimationFrame(rafRef.current);
+                }
+                return () => cancelAnimationFrame(rafRef.current);
+            }, [isPlaying, updateTimer]);
+
+            const togglePlay = () => {
+                if (videoRef.current && videoSrc) {
+                    videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
+                } else {
+                    setIsPlaying(!isPlaying);
+                }
+            };
+
+            const logEvent = (code, description) => {
+                if (navigator.vibrate) navigator.vibrate(50);
+                setEvents(prev => [...prev, {
+                    id: generateId(), code, description, timestamp: currentTime,
+                    formattedTime: formatTime(currentTime), realTime: Date.now(),
+                    preBuffer: 10, // Default buffers
+                    postBuffer: 20
+                }]);
+            };
+
+            const updateEvent = (id, updatedEvent) => {
+                setEvents(prev => prev.map(e => e.id === id ? updatedEvent : e));
+            };
+
+            const handleDefineMatchStart = () => {
+                if (!videoSrc) return;
+
+                const videoTime = currentTime;
+
+                if (window.confirm(`¿Definir este momento (${formatTime(videoTime)}) como el INICIO del partido (00:00)?\n\nEsto moverá TODOS los tiempos de tus eventos para que coincidan con el video.`)) {
+                    setEvents(prev => prev.map(e => {
+                        const newTimestamp = e.timestamp + videoTime;
+                        return {
+                            ...e,
+                            timestamp: newTimestamp,
+                        };
+                    }));
+
+                    alert("✅ Tiempos Sincronizados.\nAhora exporta tu Playlist VLC.");
+                }
+            };
+
+            const startLoop = (event) => {
+                if (!videoSrc) return;
+                const start = Math.max(0, event.timestamp - event.preBuffer);
+                const end = event.timestamp + 5; // Short loop for review (not full postBuffer)
+
+                setActiveLoop({ id: event.id, start, end });
+
+                if (videoRef.current) {
+                    videoRef.current.currentTime = start;
+                    videoRef.current.play();
+                    setIsPlaying(true);
+                }
+            };
+
+            const stopLoop = () => {
+                setActiveLoop(null);
+            };
+
+            const handleExportVLC = () => {
+                let vName = videoFile ? videoFile.name : null;
+
+                if (!vName) {
+                    vName = prompt(
+                        "⚠️ NOMBRE DEL VIDEO ⚠️\n\nPara cortar los clips, necesitamos saber el nombre EXACTO de tu archivo de video.\n\nEjemplo: partido.mp4",
+                        "video.mp4"
+                    );
+                    if (!vName) return;
+                }
+
+                // 1. Generate Batch Script (It now creates the playlist too!)
+                const batContent = generateWindowsScript(events, vName);
+
+                // Helper download function
+                const download = (content, name, type) => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob([content], { type }));
+                    a.download = name;
+                    a.click();
+                };
+
+                // Download ONLY the batch file
+                download(batContent, 'PROCESAR_CLIPS.bat', 'text/plain');
+
+                alert(`✅ Archivo Descargado: PROCESAR_CLIPS.bat\n\nINSTRUCCIONES:\n1. Ponlo junto a tu video y ffmpeg.exe\n2. Ejecútalo.\n3. Él creará los clips y la playlist automáticamente.`);
+            };
+
+            const handleExportAll = () => {
+                const csv = generateCSV(events);
+                const vName = videoFile ? videoFile.name : 'match.mp4';
+                const bat = generateWindowsScript(events, vName);
+
+                const download = (content, name, type) => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob([content], { type }));
+                    a.download = name;
+                    a.click();
+                };
+
+                download(csv, 'events.csv', 'text/csv');
+                download(bat, 'create_clips.bat', 'text/plain');
+                const m3u = generateClipsPlaylist(events); // Use the new clips playlist
+                download(m3u, 'ver_playlist_clips.m3u', 'audio/x-mpegurl');
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col p-4 md:p-6 max-w-[1600px] mx-auto pb-32">
+                    <header className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-bold text-white tracking-tight text-center sm:text-left">Handball RefEval Pro</h1>
+                            <div className="flex gap-2">
+                                {installPrompt && (
+                                    <button
+                                        onClick={handleInstallClick}
+                                        className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-md animate-pulse"
+                                    >
+                                        📲 Instalar App
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setShowHelp(true)}
+                                    className="bg-slate-700 hover:bg-slate-600 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg border border-slate-600 shadow-sm transition-colors"
+                                    title="Ayuda VLC"
+                                >
+                                    ?
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-center">
+                                <label className="bg-slate-800 active:bg-slate-700 px-3 py-2 rounded-lg text-xs sm:text-sm cursor-pointer border border-slate-700 flex items-center gap-2 shadow-sm hover:bg-slate-700 text-white">
+                                    📂 <span className="">Load Video</span>
+                                    <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+                                </label>
+                                <label className="bg-slate-700 active:bg-slate-600 px-3 py-2 rounded-lg text-xs sm:text-sm cursor-pointer border border-slate-600 flex items-center gap-2 shadow-sm hover:bg-slate-600 text-slate-200">
+                                    📄 <span className="">Import CSV</span>
+                                    <input type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
+                                </label>
+                            </div>
+
+                            <div className="flex gap-2 mt-2">
+                                <div className="flex flex-col items-end">
+                                    <button onClick={handleExportVLC} disabled={events.length === 0} className="bg-orange-600 active:bg-orange-500 hover:bg-orange-500 px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-white disabled:opacity-50 disabled:grayscale shadow-sm flex items-center gap-2 transition-colors">
+                                        ✂️ Generar Clips
+                                    </button>
+                                    <span className="text-[10px] text-orange-400/80 mt-0.5 mr-1 hidden sm:block">Requiere FFMPEG</span>
+                                </div>
+                                <button onClick={handleExportAll} disabled={events.length === 0} className="bg-slate-700 active:bg-slate-600 hover:bg-slate-600 px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-200 disabled:opacity-50 disabled:grayscale shadow-sm flex items-center gap-2 transition-colors border border-slate-600 h-fit">
+                                    ⬇ Export All
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Layout - Split Screen fixed height for desktop */}
+                    <div className="flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-140px)] min-h-[500px]">
+
+                        {/* LEFT COLUMN: VIDEO ONLY (65%) */}
+                        <div className="lg:w-[65%] flex flex-col bg-black rounded-2xl overflow-hidden shadow-2xl relative border border-slate-800">
+                            {videoSrc ? (
+                                <>
+                                    <div className="flex-1 min-h-0 relative flex items-center justify-center bg-black group">
+                                        <video
+                                            ref={videoRef} src={videoSrc} className="w-full h-full object-contain"
+                                            controls playsInline
+                                            onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onEnded={() => setIsPlaying(false)}
+                                            onTimeUpdate={() => !isPlaying && videoRef.current && setCurrentTime(videoRef.current.currentTime)}
+                                        />
+                                    </div>
+                                    {/* Sync Bar pinned at bottom */}
+                                    <div className="bg-slate-900/90 border-t border-slate-800 p-3 flex justify-center backdrop-blur-sm z-10 shrink-0">
+                                        <button
+                                            onClick={handleDefineMatchStart}
+                                            className="bg-teal-700 hover:bg-teal-600 text-teal-100 px-6 py-2 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg active:scale-95 transition-all w-full sm:w-auto justify-center"
+                                        >
+                                            <span>🏁</span> ACTUAL = INICIO PARTIDO (00:00)
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-600 p-8 text-center bg-slate-900">
+                                    <div className="text-6xl mb-4">📺</div>
+                                    <h3 className="text-xl font-bold text-slate-400">Sin Video Cargado</h3>
+                                    <p className="text-sm mt-2 max-w-xs">Carga un archivo .mp4 arriba para comenzar a analizar.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* RIGHT COLUMN: CONTROLS (35%) */}
+                        <div className="lg:w-[35%] flex flex-col gap-3 lg:overflow-y-auto pr-1 pb-2">
+                            <Stopwatch
+                                currentTime={currentTime}
+                                isPlaying={isPlaying}
+                                onTogglePlay={togglePlay}
+                                onReset={() => { setIsPlaying(false); setCurrentTime(0); setEvents([]); setActiveLoop(null); }}
+                                videoLoaded={!!videoSrc}
+                                activeLoop={activeLoop}
+                                onStopLoop={stopLoop}
+                            />
+
+                            <div className="shrink-0">
+                                <ActionGrid onAction={logEvent} disabled={!isPlaying && !videoSrc && currentTime === 0} />
+                            </div>
+
+                            <div className="flex-1 min-h-[300px] lg:min-h-0">
+                                <EventLog
+                                    events={events}
+                                    onDelete={(id) => setEvents(e => e.filter(x => x.id !== id))}
+                                    onSeek={startLoop}
+                                    onUpdate={updateEvent}
+                                    currentTime={currentTime}
+                                    activeLoop={activeLoop}
+                                    videoLoaded={!!videoSrc}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
