@@ -125,12 +125,18 @@
             { code: 'VR', description: 'Video replay', category: 'tech' },
         ];
 
-        const DEFAULT_COLORS = {
-            foul: '#dc2626', // red-600
-            admin: '#d97706', // amber-600
-            tech: '#475569', // slate-600
-            game: '#2563eb', // blue-600
+        const CATEGORY_COLORS = {
+            game: '#10B981', // Emerald 500
+            foul: '#EF4444', // Red 500
+            admin: '#F59E0B', // Amber 500
+            tech: '#60A5FA', // Blue 400
         };
+
+        // Inicializamos los colores individuales basándonos en su categoría original
+        const DEFAULT_BUTTON_COLORS = ACTION_BUTTONS.reduce((acc, btn) => {
+            acc[btn.code] = CATEGORY_COLORS[btn.category] || CATEGORY_COLORS.tech;
+            return acc;
+        }, {});
 
         // --- UTILS ---
         const formatTime = (seconds) => {
@@ -369,8 +375,8 @@
         const SettingsModal = ({ colors, onSave, onClose, onReset }) => {
             const [localColors, setLocalColors] = useState(colors);
 
-            const handleChange = (category, value) => {
-                setLocalColors(prev => ({ ...prev, [category]: value }));
+            const handleChange = (code, value) => {
+                setLocalColors(prev => ({ ...prev, [code]: value }));
             };
 
             const handleSave = () => {
@@ -378,52 +384,55 @@
                 onClose();
             };
 
+            // Agrupamos botones para mostrarlos ordenados
             const categories = [
-                { id: 'game', label: 'Juego (Goles, Pasos...)', default: DEFAULT_COLORS.game },
-                { id: 'foul', label: 'Faltas (Ofensiva, Simulación)', default: DEFAULT_COLORS.foul },
-                { id: 'admin', label: 'Administrativo (Tarjetas, 30s)', default: DEFAULT_COLORS.admin },
-                { id: 'tech', label: 'Técnico (Video, Especial)', default: DEFAULT_COLORS.tech },
+                { id: 'game', label: 'Juego' },
+                { id: 'foul', label: 'Faltas' },
+                { id: 'admin', label: 'Administrativo' },
+                { id: 'tech', label: 'Técnico' },
             ];
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-                    <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700 flex flex-col max-h-[90vh]">
+                    <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
                             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                🎨 Configurar Colores
+                                🎨 Colores por Botón
                             </h2>
                             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors text-2xl leading-none">&times;</button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto space-y-6">
-                            <p className="text-slate-400 text-sm">Personaliza el color de los botones para que se vean mejor en tu pantalla o celular.</p>
+                        <div className="p-4 overflow-y-auto space-y-6 flex-1">
+                            <p className="text-slate-400 text-sm">Elige un color único para cada acción.</p>
 
-                            <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {categories.map(cat => (
-                                    <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
-                                        <div className="flex flex-col">
-                                            <span className="text-white font-medium">{cat.label}</span>
-                                            <span className="text-xs text-slate-500 uppercase tracking-wider">{cat.id}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <input
-                                                type="color"
-                                                value={localColors[cat.id]}
-                                                onChange={(e) => handleChange(cat.id, e.target.value)}
-                                                className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent"
-                                            />
-                                            {/* Preview Circle */}
-                                            <div
-                                                className="w-8 h-8 rounded-full border-2 border-slate-600 shadow-sm"
-                                                style={{ backgroundColor: localColors[cat.id] }}
-                                            />
+                                    <div key={cat.id} className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+                                        <h3 className="text-slate-300 font-bold mb-3 uppercase text-xs tracking-wider border-b border-slate-700 pb-1">{cat.label}</h3>
+                                        <div className="space-y-2">
+                                            {ACTION_BUTTONS.filter(b => b.category === cat.id).map(btn => (
+                                                <div key={btn.code} className="flex items-center justify-between gap-2 p-1.5 hover:bg-slate-700/50 rounded transition-colors">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-white font-bold text-sm">{btn.code}</span>
+                                                        <span className="text-[10px] text-slate-500 truncate">{btn.description}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="color"
+                                                            value={localColors[btn.code] || '#000000'}
+                                                            onChange={(e) => handleChange(btn.code, e.target.value)}
+                                                            className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-slate-800 bg-slate-800/30 flex justify-between rounded-b-2xl">
+                        <div className="p-4 border-t border-slate-800 bg-slate-800/30 flex justify-between rounded-b-2xl shrink-0">
                             <button
                                 onClick={() => { onReset(); onClose(); }}
                                 className="text-slate-400 hover:text-white text-sm px-3 py-2 underline"
@@ -433,7 +442,7 @@
                             <div className="flex gap-2">
                                 <button onClick={onClose} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
                                 <button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
-                                    Guardar Cambios
+                                    Guardar
                                 </button>
                             </div>
                         </div>
@@ -446,7 +455,8 @@
             return (
                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-1">
                     {ACTION_BUTTONS.map((btn) => {
-                        const baseColor = colors[btn.category] || DEFAULT_COLORS.tech;
+                        // Cambiado: Ahora busca por CÓDIGO único, no por categoría
+                        const baseColor = colors[btn.code] || CATEGORY_COLORS.tech;
                         return (
                             <button
                                 key={btn.code}
@@ -496,7 +506,7 @@
             </div>
         );
 
-        const EventLog = ({ events, onDelete, onSeek, onUpdate, currentTime, activeLoop, videoLoaded }) => {
+        const EventLog = ({ events, onDelete, onSeek, onUpdate, currentTime, activeLoop, videoLoaded, colors }) => {
             const listRef = useRef(null);
             const [expandedId, setExpandedId] = useState(null);
 
@@ -558,7 +568,7 @@
                                 >
                                     <div className="flex justify-between items-start w-full">
                                         <div className="flex gap-3 flex-1 cursor-pointer items-center" onClick={() => onSeek(event)}>
-                                            <div className={`w-1.5 h-8 rounded-full ${COLOR_MAP[buttonCategory].split(' ')[0]}`}></div>
+                                            <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: colors[event.code] || '#475569' }}></div>
                                             <div className="overflow-hidden flex-1">
                                                 <div className="flex justify-between items-center">
                                                     <div className="flex gap-2 items-baseline">
@@ -624,16 +634,16 @@
             const [videoSrc, setVideoSrc] = useState("");
             const [videoFile, setVideoFile] = useState(null);
 
-            // Color Settings State
+            // Color Settings State - UPDATED KEY for granular colors
             const [colors, setColors] = useState(() => {
-                const saved = localStorage.getItem('refEval_colors');
-                return saved ? JSON.parse(saved) : DEFAULT_COLORS;
+                const saved = localStorage.getItem('refEval_btn_colors');
+                return saved ? JSON.parse(saved) : DEFAULT_BUTTON_COLORS;
             });
             const [showSettings, setShowSettings] = useState(false);
 
             // Save colors whenever they change
             useEffect(() => {
-                localStorage.setItem('refEval_colors', JSON.stringify(colors));
+                localStorage.setItem('refEval_btn_colors', JSON.stringify(colors));
             }, [colors]);
 
             // UI State
@@ -946,6 +956,7 @@
                                     currentTime={currentTime}
                                     activeLoop={activeLoop}
                                     videoLoaded={!!videoSrc}
+                                    colors={colors}
                                 />
                             </div>
                         </div>
@@ -957,7 +968,7 @@
                             colors={colors}
                             onSave={setColors}
                             onClose={() => setShowSettings(false)}
-                            onReset={() => setColors(DEFAULT_COLORS)}
+                            onReset={() => setColors(DEFAULT_BUTTON_COLORS)}
                         />
                     )}
                 </div>
