@@ -67,6 +67,22 @@
                 transform: scale(1);
             }
         }
+
+        /* Dynamic Button Styles */
+        .action-btn {
+            background-color: var(--btn-color);
+            border-color: var(--btn-border);
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            filter: brightness(1.15);
+        }
+
+        .action-btn:active {
+            filter: brightness(0.9);
+            transform: scale(0.98);
+        }
     </style>
     <script type="importmap">
 {
@@ -109,11 +125,11 @@
             { code: 'VR', description: 'Video replay', category: 'tech' },
         ];
 
-        const COLOR_MAP = {
-            foul: 'bg-red-600 hover:bg-red-500 border-red-800 active:bg-red-700',
-            admin: 'bg-amber-600 hover:bg-amber-500 border-amber-800 active:bg-amber-700',
-            tech: 'bg-slate-600 hover:bg-slate-500 border-slate-700 active:bg-slate-700',
-            game: 'bg-blue-600 hover:bg-blue-500 border-blue-800 active:bg-blue-700',
+        const DEFAULT_COLORS = {
+            foul: '#dc2626', // red-600
+            admin: '#d97706', // amber-600
+            tech: '#475569', // slate-600
+            game: '#2563eb', // blue-600
         };
 
         // --- UTILS ---
@@ -350,27 +366,113 @@
             </div>
         );
 
-        const ActionGrid = ({ onAction, disabled }) => (
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 select-none pb-4">
-                {ACTION_BUTTONS.map((btn) => (
-                    <button
-                        key={btn.code}
-                        disabled={disabled}
-                        onClick={(e) => {
-                            const el = e.currentTarget;
-                            el.style.transform = "scale(0.95)";
-                            setTimeout(() => el.style.transform = "scale(1)", 100);
-                            onAction(btn.code, btn.description);
-                        }}
-                        className={`${COLOR_MAP[btn.category]} h-20 sm:h-24 rounded-lg border-b-4 active:border-b-0 flex flex-col items-center justify-center text-center shadow-md transition-all touch-manipulation`}
-                    >
-                        <span className="text-xl sm:text-2xl font-bold text-white drop-shadow-md leading-none pointer-events-none">{btn.code}</span>
-                        <span className="text-[10px] sm:text-xs text-white/90 font-medium leading-tight mt-1 px-1 pointer-events-none truncate w-full">{btn.description}</span>
-                    </button>
-                ))}
-            </div>
-        );
+        const SettingsModal = ({ colors, onSave, onClose, onReset }) => {
+            const [localColors, setLocalColors] = useState(colors);
 
+            const handleChange = (category, value) => {
+                setLocalColors(prev => ({ ...prev, [category]: value }));
+            };
+
+            const handleSave = () => {
+                onSave(localColors);
+                onClose();
+            };
+
+            const categories = [
+                { id: 'game', label: 'Juego (Goles, Pasos...)', default: DEFAULT_COLORS.game },
+                { id: 'foul', label: 'Faltas (Ofensiva, Simulación)', default: DEFAULT_COLORS.foul },
+                { id: 'admin', label: 'Administrativo (Tarjetas, 30s)', default: DEFAULT_COLORS.admin },
+                { id: 'tech', label: 'Técnico (Video, Especial)', default: DEFAULT_COLORS.tech },
+            ];
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+                    <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700 flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                🎨 Configurar Colores
+                            </h2>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors text-2xl leading-none">&times;</button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            <p className="text-slate-400 text-sm">Personaliza el color de los botones para que se vean mejor en tu pantalla o celular.</p>
+
+                            <div className="space-y-4">
+                                {categories.map(cat => (
+                                    <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
+                                        <div className="flex flex-col">
+                                            <span className="text-white font-medium">{cat.label}</span>
+                                            <span className="text-xs text-slate-500 uppercase tracking-wider">{cat.id}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="color"
+                                                value={localColors[cat.id]}
+                                                onChange={(e) => handleChange(cat.id, e.target.value)}
+                                                className="w-10 h-10 rounded cursor-pointer border-0 p-0 bg-transparent"
+                                            />
+                                            {/* Preview Circle */}
+                                            <div
+                                                className="w-8 h-8 rounded-full border-2 border-slate-600 shadow-sm"
+                                                style={{ backgroundColor: localColors[cat.id] }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-800 bg-slate-800/30 flex justify-between rounded-b-2xl">
+                            <button
+                                onClick={() => { onReset(); onClose(); }}
+                                className="text-slate-400 hover:text-white text-sm px-3 py-2 underline"
+                            >
+                                Restaurar Originales
+                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={onClose} className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
+                                <button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ActionGrid = ({ onAction, disabled, colors }) => {
+            return (
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-1">
+                    {ACTION_BUTTONS.map((btn) => {
+                        const baseColor = colors[btn.category] || DEFAULT_COLORS.tech;
+                        return (
+                            <button
+                                key={btn.code}
+                                onClick={() => onAction(btn.code, btn.description)}
+                                disabled={disabled}
+                                className={`
+                                    action-btn
+                                    h-12 sm:h-14
+                                    rounded-lg flex flex-col items-center justify-center p-1
+                                    shadow-md border-b-4 
+                                    text-white
+                                    disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed
+                                `}
+                                style={{
+                                    backgroundColor: baseColor,
+                                    borderColor: baseColor // We could darken this but same color border style usually works with border-b-4
+                                }}
+                            >
+                                <span className="font-bold text-sm sm:text-base leading-tight drop-shadow-sm">{btn.code}</span>
+                                <span className="text-[9px] sm:text-[10px] opacity-90 leading-tight hidden sm:block truncate w-full text-center">{btn.description}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        };
         const TimeAdjuster = ({ label, value, onChange, colorClass, title }) => (
             <div className="flex flex-col gap-1 flex-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400" title={title}>{label}</span>
@@ -512,6 +614,8 @@
             );
         };
 
+
+
         // --- MAIN APP ---
         const App = () => {
             const [events, setEvents] = useState([]);
@@ -519,6 +623,18 @@
             const [isPlaying, setIsPlaying] = useState(false);
             const [videoSrc, setVideoSrc] = useState("");
             const [videoFile, setVideoFile] = useState(null);
+
+            // Color Settings State
+            const [colors, setColors] = useState(() => {
+                const saved = localStorage.getItem('refEval_colors');
+                return saved ? JSON.parse(saved) : DEFAULT_COLORS;
+            });
+            const [showSettings, setShowSettings] = useState(false);
+
+            // Save colors whenever they change
+            useEffect(() => {
+                localStorage.setItem('refEval_colors', JSON.stringify(colors));
+            }, [colors]);
 
             // UI State
             const [showHelp, setShowHelp] = useState(false);
@@ -730,6 +846,13 @@
                                     </button>
                                 )}
                                 <button
+                                    onClick={() => setShowSettings(true)}
+                                    className="bg-slate-700 hover:bg-slate-600 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg border border-slate-600 shadow-sm transition-colors"
+                                    title="Configurar Colores"
+                                >
+                                    ⚙️
+                                </button>
+                                <button
                                     onClick={() => setShowHelp(true)}
                                     className="bg-slate-700 hover:bg-slate-600 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg border border-slate-600 shadow-sm transition-colors"
                                     title="Ayuda VLC"
@@ -811,7 +934,7 @@
                             />
 
                             <div className="shrink-0">
-                                <ActionGrid onAction={logEvent} disabled={!isPlaying && !videoSrc && currentTime === 0} />
+                                <ActionGrid onAction={logEvent} disabled={!isPlaying && !videoSrc && currentTime === 0} colors={colors} />
                             </div>
 
                             <div className="flex-1 min-h-[300px] lg:min-h-0">
@@ -829,6 +952,14 @@
                     </div>
 
                     {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+                    {showSettings && (
+                        <SettingsModal
+                            colors={colors}
+                            onSave={setColors}
+                            onClose={() => setShowSettings(false)}
+                            onReset={() => setColors(DEFAULT_COLORS)}
+                        />
+                    )}
                 </div>
             );
         };
